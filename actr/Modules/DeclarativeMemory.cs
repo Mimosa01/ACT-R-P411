@@ -13,35 +13,38 @@ public class DeclarativeMemory {
 
   public Chunk? Retrieve(string? chunkType = null, Dictionary<string, object?>? request = null)
   {
-      var candidates = _chunks.Values.AsEnumerable();
+    var candidates = _chunks.Values.AsEnumerable();
 
-      // Фильтр по типу
-      if (chunkType != null)
-          candidates = candidates.Where(c => c.ChunkType == chunkType);
+    // Фильтр по типу
+    if (chunkType != null)
+        candidates = candidates.Where(chunk => chunk.ChunkType == chunkType);
 
-      // Фильтр по слотам запроса
-      if (request != null)
-      {
-          candidates = candidates.Where(chunk =>
-              request.All(kv =>
-              {
-                  var slotValue = chunk.GetSlot(kv.Key);
-                  // Сравниваем через строку — для простоты на этом этапе
-                  return slotValue?.ToString() == kv.Value?.ToString();
-              })
-          );
-      }
+    // Фильтр по слотам запроса
+    if (request != null)
+    {
+        candidates = candidates.Where(chunk =>
+            request.All(kv =>
+            {
+                var slotValue = chunk.GetSlot(kv.Key);
+                // Сравниваем через строку — для простоты на этом этапе
+                return slotValue?.ToString() == kv.Value?.ToString();
+            })
+        );
+    }
 
-      // Этап 1: возвращаем первый найденный
-      // Этап 2: здесь будет выбор по максимальной активации
-      var result = candidates.FirstOrDefault();
+    var result = candidates
+        .OrderByDescending(c => c.GetActivation())
+        .FirstOrDefault();
 
-      if (result != null)
-          Console.WriteLine($"[DM] Retrieval success: {result}");
-      else
-          Console.WriteLine($"[DM] Retrieval failure — ничего не найдено.");
+    if (result != null) {
+        Console.WriteLine($"[DM] Retrieval success (activation: {result.GetActivation():F3}): {result}");
+        result.RecordReference();
+    }
+    else {
+        Console.WriteLine("[DM] Retrieval failure — ничего не найдено.");
+    }
 
-      return result;
+    return result;
   }
 
   /// <summary>

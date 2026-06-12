@@ -1,19 +1,9 @@
 ﻿using actr.Core;
-
-// ============================================================
-// Демо: Этап 1 — Chunk и DeclarativeMemory
-// 
-// Агент "знает" факты умножения.
-// Мы загружаем их в DeclarativeMemory и делаем запросы.
-// ============================================================
-
-Console.WriteLine("=== ACT-R Агент. Этап 1: Chunk и DeclarativeMemory ===\n");
+Console.WriteLine("=== ACT-R Агент. Этап 2: Activation ===\n");
 
 var memory = new DeclarativeMemory();
 
-// Загружаем факты умножения в память.
-// Теория: это как будто агент когда-то выучил таблицу умножения,
-// и теперь эти знания хранятся в его декларативной памяти.
+// Загружаем факты умножения
 var facts = new (int a, int b, int result)[]
 {
     (2, 3, 6), (2, 4, 8), (3, 3, 9),
@@ -34,14 +24,46 @@ foreach (var (a, b, result) in facts)
     ));
 }
 
-Console.WriteLine($"\nЗагружено в память: {memory.Count} chunk'ов\n");
+// ── Сценарий: два chunk'а с разной историей ────────────────
+//
+// Добавим второй факт для 3*4 с другим именем — чтобы оба
+// подходили под один запрос и система выбирала по активации.
+//
+// В реальном ACT-R одинаковых фактов обычно нет, но нам нужно
+// показать механизм выбора — поэтому идём на это допущение.
 
-// ---- Запросы (Retrieval) ----
-Console.WriteLine("--- Запросы к памяти ---\n");
+var chunkFrequent = memory.GetByName("mult-3-4")!;  // будет "свежим"
+var chunkStale    = new Chunk(
+    name: "mult-3-4-old",
+    chunkType: "multiplication-fact",
+    slots: new Dictionary<string, object?>
+    {
+        ["multiplicand"] = 3,
+        ["multiplier"]   = 4,
+        ["product"]      = 12
+    }
+);
+memory.Add(chunkStale);
 
-// Запрос 1: что такое 3 * 4?
-Console.Write("Вопрос: 3 * 4 = ? → ");
-var answer1 = memory.Retrieve(
+// Симулируем историю обращений
+// chunkFrequent: вспоминали недавно и часто
+chunkFrequent.RecordReference(DateTime.UtcNow.AddSeconds(-5));
+chunkFrequent.RecordReference(DateTime.UtcNow.AddSeconds(-10));
+chunkFrequent.RecordReference(DateTime.UtcNow.AddSeconds(-30));
+
+// chunkStale: вспоминали давно
+chunkStale.RecordReference(DateTime.UtcNow.AddSeconds(-1));
+chunkStale.RecordReference(DateTime.UtcNow.AddSeconds(-5));
+chunkStale.RecordReference(DateTime.UtcNow.AddSeconds(-10));
+chunkStale.RecordReference(DateTime.UtcNow.AddSeconds(-30));
+
+Console.WriteLine("\n--- Активации перед запросом ---");
+Console.WriteLine($"  {chunkFrequent.Name,-15} activation = {chunkFrequent.GetActivation():F3}");
+Console.WriteLine($"  {chunkStale.Name,-15} activation = {chunkStale.GetActivation():F3}");
+
+Console.WriteLine("\n--- Запрос: multiplicand=3, multiplier=4 ---\n");
+
+var answer = memory.Retrieve(
     chunkType: "multiplication-fact",
     request: new Dictionary<string, object?>
     {
@@ -49,23 +71,13 @@ var answer1 = memory.Retrieve(
         ["multiplier"]   = 4
     }
 );
-Console.WriteLine($"Ответ: {answer1?.GetSlot("product") ?? "не знаю"}\n");
 
-// Запрос 2: какой факт даёт произведение 8?
-Console.Write("Вопрос: что умножается и даёт 8? → ");
-var answer2 = memory.Retrieve(
-    chunkType: "multiplication-fact",
-    request: new Dictionary<string, object?>
-    {
-        ["product"] = 8
-    }
-);
-if (answer2 != null)
-    Console.WriteLine($"Ответ: {answer2.GetSlot("multiplicand")} * {answer2.GetSlot("multiplier")}\n");
+Console.WriteLine($"\nВыбран chunk: {answer?.Name ?? "никто"}");
+Console.WriteLine($"Ответ: 3 * 4 = {answer?.GetSlot("product") ?? "?"}");
 
-// Запрос 3: retrieval failure — факта нет в памяти
-Console.Write("Вопрос: 7 * 8 = ? → ");
-var answer3 = memory.Retrieve(
+// ── Retrieval failure ──────────────────────────────────────
+Console.WriteLine("\n--- Retrieval failure: факта нет в памяти ---\n");
+memory.Retrieve(
     chunkType: "multiplication-fact",
     request: new Dictionary<string, object?>
     {
@@ -73,12 +85,11 @@ var answer3 = memory.Retrieve(
         ["multiplier"]   = 8
     }
 );
-Console.WriteLine($"Ответ: {answer3?.GetSlot("product") ?? "не знаю (retrieval failure)"}\n");
 
-// ---- Итог ----
-Console.WriteLine("=== Что увидели ===");
-Console.WriteLine("Chunk      → единица знания с типом и слотами");
-Console.WriteLine("Retrieve   → поиск по паттерну (тип + частичные слоты)");
-Console.WriteLine("Failure    → агент может НЕ вспомнить — это нормально в ACT-R");
-Console.WriteLine("\nДальше (Этап 2): каждый chunk получит activation,");
-Console.WriteLine("и Retrieve будет выбирать самый 'активный' из подходящих.");
+// ── Итог ──────────────────────────────────────────────────
+Console.WriteLine("\n=== Что увидели ===");
+Console.WriteLine("Activation    → чем свежее и чаще обращения, тем выше");
+Console.WriteLine("Retrieve      → выбирает chunk с max activation");
+Console.WriteLine("RecordRef     → каждый Retrieve поднимает активацию");
+Console.WriteLine("NegativeInf   → chunk без истории практически недостижим");
+Console.WriteLine("\nДальше (Этап 3): буферы — как модули общаются друг с другом.");
