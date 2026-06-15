@@ -1,4 +1,4 @@
-class GoalModule
+public class GoalModule
 {
   private Buffers _buffers;
   public GoalModule (Buffers b) { _buffers = b; }

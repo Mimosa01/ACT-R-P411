@@ -1,4 +1,4 @@
-class Buffer
+public class Buffer
 {
   public string Name;
   private Chunk? _content;

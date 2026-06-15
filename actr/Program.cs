@@ -1,15 +1,18 @@
-﻿using actr.Core;
+﻿
+using actr.Core;
 
 // ============================================================
-// Демо: Этап 3 — Буферы и модули
+// Демо: Этап 4 — Продукции и процедурный модуль
 //
-// Полный цикл: цель → запрос → результат — всё через буферы.
-// Прямых обращений к памяти из основного кода нет.
+// Ручной цикл из трёх тактов.
+// Такт 1: start-retrieval
+// Такт 2: retrieve-answer
+// Такт 3: нет подходящих продукций
 // ============================================================
 
-Console.WriteLine("=== ACT-R Агент. Этап 3: Буферы и модули ===\n");
+Console.WriteLine("=== ACT-R Агент. Этап 4: Продукции ===\n");
 
-// ── Инициализация памяти ───────────────────────────────────
+// ── Память ─────────────────────────────────────────────────
 
 var memory = new DeclarativeMemory();
 
@@ -31,26 +34,25 @@ foreach (var (a, b, result) in facts)
             ["product"]      = result
         }
     );
-    // Добавляем историю чтобы активация работала
     chunk.RecordReference(DateTime.UtcNow.AddSeconds(-10));
     memory.Add(chunk);
 }
 
 // ── Сборка архитектуры ─────────────────────────────────────
-//
-// Buffers создаётся один раз и передаётся во все модули.
-// Это единственный экземпляр — все пишут и читают одни и те же буферы.
 
-var buffers = new Buffers();
-var goalModule = new GoalModule(buffers);
-var dm         = new DeclarativeModule(memory, buffers);
+var buffers   = new Buffers();
+var goalMod   = new GoalModule(buffers);
+var dmMod     = new DeclarativeModule(memory, buffers);
+var procMod   = new ProceduralModule(buffers);
 
-// ── Сценарий 1: успешное вспоминание ──────────────────────
+foreach (var p in ArithmeticProductions.Create(dmMod, goalMod))
+    procMod.AddProduction(p);
 
-Console.WriteLine("\n--- Сценарий 1: найти 3 * 4 ---\n");
+// ── Установить цель ────────────────────────────────────────
 
-// Шаг 1: установить цель
-goalModule.SetGoal(new Chunk(
+Console.WriteLine("\n--- Установка цели ---\n");
+
+goalMod.SetGoal(new Chunk(
     name: "current-goal",
     chunkType: "find-product",
     slots: new Dictionary<string, object?>
@@ -60,76 +62,25 @@ goalModule.SetGoal(new Chunk(
     }
 ));
 
-// Шаг 2: прочитать цель из буфера (не из локальной переменной!)
-var currentGoal = buffers.Goal.Get();
+// ── Ручной цикл тактов ─────────────────────────────────────
 
-if (!buffers.Goal.IsEmpty() && currentGoal != null)
-{
-    var a = currentGoal.GetSlot("multiplicand");
-    var b = currentGoal.GetSlot("multiplier");
+Console.WriteLine("\n--- Такт 1 ---\n");
+procMod.SelectAndFire();
 
-    Console.WriteLine($"\nЧитаем из Goal buffer: {a} * {b} = ?");
+Console.WriteLine("\n--- Такт 2 ---\n");
+procMod.SelectAndFire();
 
-    // Шаг 3: запросить память через модуль
-    dm.RequestRetrieval(
-        chunkType: "multiplication-fact",
-        request: new Dictionary<string, object?>
-        {
-            ["multiplicand"] = a,
-            ["multiplier"]   = b
-        }
-    );
-}
+Console.WriteLine("\n--- Такт 3 ---\n");
+procMod.SelectAndFire();
 
-// Шаг 4: прочитать результат из Retrieval buffer
-Console.WriteLine($"\nRetrieval buffer пуст: {buffers.Retrieval.IsEmpty}");
-
-if (!buffers.Retrieval.IsEmpty())
-{
-    var retrieved = buffers.Retrieval.Get()!;
-    Console.WriteLine($"Ответ: {currentGoal?.GetSlot("multiplicand")} * " +
-                      $"{currentGoal?.GetSlot("multiplier")} = " +
-                      $"{retrieved.GetSlot("product")}");
-}
-
-// ── Сценарий 2: retrieval failure ─────────────────────────
-
-Console.WriteLine("\n--- Сценарий 2: retrieval failure (7 * 8) ---\n");
-
-goalModule.SetGoal(new Chunk(
-    name: "current-goal-2",
-    chunkType: "find-product",
-    slots: new Dictionary<string, object?>
-    {
-        ["multiplicand"] = 7,
-        ["multiplier"]   = 8
-    }
-));
-
-var goal2 = buffers.Goal.Get();
-if (!buffers.Goal.IsEmpty() && goal2 != null)
-{
-    dm.RequestRetrieval(
-        chunkType: "multiplication-fact",
-        request: new Dictionary<string, object?>
-        {
-            ["multiplicand"] = goal2.GetSlot("multiplicand"),
-            ["multiplier"]   = goal2.GetSlot("multiplier")
-        }
-    );
-}
-
-Console.WriteLine($"\nRetrieval buffer пуст: {buffers.Retrieval.IsEmpty}");
-Console.WriteLine(buffers.Retrieval.IsEmpty()
-    ? "Агент не знает ответа (retrieval failure)."
-    : $"Найдено: {buffers.Retrieval.Get()}");
-
-// ── Итог ──────────────────────────────────────────────────
+// ── Итог ───────────────────────────────────────────────────
 
 Console.WriteLine("\n=== Что увидели ===");
-Console.WriteLine("Buffer          → один chunk, Set/Clear/Get/IsEmpty");
-Console.WriteLine("Buffers         → один объект на всю систему");
-Console.WriteLine("GoalModule      → пишет в Goal buffer");
-Console.WriteLine("DeclarativeModule → пишет в Retrieval buffer, сам ничего не возвращает");
-Console.WriteLine("Retrieval failure → IsEmpty == true, продукция это обработает");
-Console.WriteLine("\nДальше (Этап 4): продукции — IF <буферы> THEN <действие>.");
+Console.WriteLine("Production      → имя + Func<Buffers,bool> + Action<Buffers>");
+Console.WriteLine("Matches         → проверяет условие на текущих буферах");
+Console.WriteLine("SelectAndFire   → Match → Select → Fire, один такт");
+Console.WriteLine("Conflict set    → все подошедшие; сейчас берём первую");
+Console.WriteLine("Такт 1          → start-retrieval (retrieval пуст)");
+Console.WriteLine("Такт 2          → retrieve-answer (retrieval заполнен)");
+Console.WriteLine("Такт 3          → пусто (goal очищен, продукции не подходят)");
+Console.WriteLine("\nДальше (Этап 5): utility — агент учится выбирать лучшую продукцию.");

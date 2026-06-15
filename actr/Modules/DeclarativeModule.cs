@@ -1,6 +1,6 @@
 using actr.Core;
 
-class DeclarativeModule
+public class DeclarativeModule
 {
   private readonly DeclarativeMemory _memory;
   private readonly Buffers _buffers;
