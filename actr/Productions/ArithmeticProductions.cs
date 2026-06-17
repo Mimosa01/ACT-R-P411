@@ -9,6 +9,7 @@ internal static class ArithmeticProductions
     // Действие: запросить DeclarativeMemory
     yield return new Production(
       name: "start-retrieval",
+      initialUtility: 0.5,
 
       condition: buffers =>
       {
@@ -47,6 +48,7 @@ internal static class ArithmeticProductions
     // Действие: вывести ответ, очистить цель
     yield return new Production(
       name: "retrieve-answer",
+      initialUtility: 0.5,
 
       condition: buffers =>
       {
@@ -70,6 +72,52 @@ internal static class ArithmeticProductions
 
         // Цель достигнута — очищаем
         gm.ClearGoal();
+      }
+    );
+
+    yield return new Production(
+      name: "handle-failure",
+      initialUtility: 0.5,
+
+      condition: buffers =>
+      {
+        if (buffers.Goal.IsEmpty())      return false;
+        if (!buffers.Retrieval.IsEmpty()) return false;
+        var goal = buffers.Goal.Get()!;
+        if (goal.ChunkType != "find-product") return false;
+
+        var attempted = goal.GetSlot("retrieval-attempted");
+        return attempted is true;
+      },
+
+      action: buffers =>
+      {
+        var goal = buffers.Goal.Get()!;
+        var a    = goal.GetSlot("multiplicand");
+        var b    = goal.GetSlot("multiplier");
+
+        Console.WriteLine($"[handle-failure] Не знаю ответа: {a} * {b} = ?");
+        gm.ClearGoal();
+      }
+    );
+    
+    yield return new Production(
+      name: "lazy-guess",
+      initialUtility: 0.0,
+
+      condition: buffers =>
+      {
+        if (buffers.Goal.IsEmpty()) return false;
+        var goal = buffers.Goal.Get()!;
+        if (goal.ChunkType != "find-product") return false;
+        if (!buffers.Retrieval.IsEmpty()) return false;
+        var attempted = goal.GetSlot("retrieval-attempted");
+        return attempted is not true;
+      },
+
+      action: buffers =>
+      {
+        Console.WriteLine("[lazy-guess] Пропускаю поиск, ничего не делаю.");
       }
     );
   }
