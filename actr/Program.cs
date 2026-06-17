@@ -136,7 +136,7 @@ foreach (var p in productions)
 
 var retrieveAnswer = productions.First(p => p.Name == "retrieve-answer");
 var startRetrieval = productions.First(p => p.Name == "start-retrieval");
-// var lazyGuess      = productions.First(p => p.Name == "lazy-guess");
+var lazyGuess      = productions.First(p => p.Name == "lazy-guess");
 
 // ── Часть 1: одна награда ───────────────────────────────────
 
@@ -184,7 +184,7 @@ for (int i = 0; i < pairs.Length; i++)
 
 Console.WriteLine("\n========== ЧАСТЬ 3: conflict set (start-retrieval vs lazy-guess) ==========\n");
 Console.WriteLine($"start-retrieval utility: {startRetrieval.Utility:F3}");
-// Console.WriteLine($"lazy-guess utility:      {lazyGuess.Utility:F3}\n");
+Console.WriteLine($"lazy-guess utility:      {lazyGuess.Utility:F3}\n");
 
 Console.WriteLine("Запускаем такт 5 раз подряд — несмотря на шум,");
 Console.WriteLine("start-retrieval должен выигрывать почти всегда:\n");
@@ -192,6 +192,15 @@ Console.WriteLine("start-retrieval должен выигрывать почти 
 for (int i = 0; i < 5; i++)
 {
     Console.WriteLine($"\n--- Попытка {i + 1} ---\n");
+
+    // Важно: чистим оба буфера. ClearGoal чистит только Goal —
+    // если Retrieval остался заполненным с прошлой попытки,
+    // start-retrieval и lazy-guess не подойдут (их условие требует
+    // Retrieval.IsEmpty), а retrieve-answer сработает мгновенно
+    // на устаревших данных. Тогда conflict set будет состоять
+    // из одной retrieve-answer, а не из тех двух, что мы хотим показать.
+    buffers.Retrieval.Clear();
+
     goalMod.SetGoal(new Chunk(
         name: $"conflict-goal-{i}",
         chunkType: "find-product",
@@ -203,7 +212,6 @@ for (int i = 0; i < 5; i++)
     ));
     procMod.SelectAndFire();
 
-    // Сбросим goal вручную для следующей попытки
     goalMod.ClearGoal();
 }
 
