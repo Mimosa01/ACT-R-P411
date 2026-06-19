@@ -12,7 +12,7 @@ using actr.Core;
 /// </summary>
 internal static class ArithmeticProductions
 {
-    public static IEnumerable<Production> Create(DeclarativeModule dm, GoalModule gm)
+    internal static IEnumerable<Production> Create(DeclarativeModule dm, GoalModule gm)
     {
         // ── Продукция 1: start-retrieval ──────────────────────────
         //
@@ -84,6 +84,7 @@ internal static class ArithmeticProductions
                 Console.WriteLine($"[Answer] {a} * {b} = {product}");
 
                 gm.ClearGoal();
+                buffers.Retrieval.Clear();
             }
         );
 
@@ -120,7 +121,7 @@ internal static class ArithmeticProductions
         // ── Продукция 4: lazy-guess (из этапа 5, для conflict set) ──
         yield return new Production(
             name: "lazy-guess",
-            initialUtility: 0.0,
+            initialUtility: 0.5,
 
             condition: buffers =>
             {
